@@ -46,7 +46,7 @@ services:
       - qdrant
       - redis
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
     env_file: .env
     environment:
       # Inside the compose network, services are reached by their service name
