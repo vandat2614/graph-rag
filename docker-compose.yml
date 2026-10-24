@@ -64,7 +64,7 @@ services:
     build: .
     container_name: graphrag-worker
     restart: unless-stopped
-    command: ["rq", "worker", "ingest", "--url", "redis://:${REDIS_PASSWORD}@redis:6379/0"]
+    command: ["rq", "worker", "ingest", "--with-scheduler", "--url", "redis://:${REDIS_PASSWORD}@redis:6379/0"]
     depends_on:
       - neo4j
       - qdrant
