@@ -1,0 +1,10 @@
+   openai
+   neo4j
+   qdrant-client
+   pypdf
+   python-dotenv
+   redis
+   rq
+   fastapi
+   uvicorn
+   python-multipart
