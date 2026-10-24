@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 
 from src.config import Config
+from src.models import RetrievedContext
 from src.pipeline.chunking import chunk_document
 from src.pipeline.extraction import extract_from_chunk
 from src.pipeline.generation import generate_answer
@@ -54,9 +55,13 @@ class GraphRAG:
         index(chunks, entities, relations, self.graph, self.vectors)
         return {"chunks": len(chunks), "entities": len(entities), "relations": len(relations)}
 
-    def ask(self, question: str) -> str:
+    def ask_with_context(self, question: str) -> tuple[str, RetrievedContext]:
+        """Answer a question and also return the context the answer was based on."""
         ctx = retrieve(question, self.graph, self.vectors)
-        return generate_answer(question, ctx)
+        return generate_answer(question, ctx), ctx
+
+    def ask(self, question: str) -> str:
+        return self.ask_with_context(question)[0]
 
     def close(self) -> None:
         self.graph.close()

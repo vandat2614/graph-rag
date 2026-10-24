@@ -32,8 +32,26 @@ class AskRequest(BaseModel):
     question: str = Field(min_length=1)
 
 
+class Node(BaseModel):
+    id: str
+    name: str
+    type: str
+    description: str
+
+
+class Edge(BaseModel):
+    id: str
+    source: str  # node id
+    target: str  # node id
+    keywords: str
+    description: str
+
+
 class AskResponse(BaseModel):
     answer: str
+    # The part of the knowledge graph that was used to answer, ready to be drawn
+    nodes: list[Node]
+    edges: list[Edge]
 
 
 @app.get("/health")
@@ -65,4 +83,21 @@ def get_job(job_id: str) -> dict:
 
 @app.post("/ask", response_model=AskResponse)
 def ask(req: AskRequest) -> AskResponse:
-    return AskResponse(answer=app.state.rag.ask(req.question))
+    answer, ctx = app.state.rag.ask_with_context(req.question)
+    return AskResponse(
+        answer=answer,
+        nodes=[
+            Node(id=e.id, name=e.name, type=e.type, description=e.description)
+            for e in ctx.entities
+        ],
+        edges=[
+            Edge(
+                id=r.id,
+                source=r.source_id,
+                target=r.target_id,
+                keywords=r.keywords,
+                description=r.description,
+            )
+            for r in ctx.relations
+        ],
+    )
