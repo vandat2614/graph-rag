@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from src.app import GraphRAG
@@ -15,6 +16,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 cfg = Config()
 UPLOAD_DIR = Path(cfg.data_dir) / "uploads"
+STATIC_DIR = Path(__file__).parent / "static"
 
 
 @asynccontextmanager
@@ -52,6 +54,12 @@ class AskResponse(BaseModel):
     # The part of the knowledge graph that was used to answer, ready to be drawn
     nodes: list[Node]
     edges: list[Edge]
+
+
+@app.get("/", include_in_schema=False)
+def index() -> FileResponse:
+    """Demo page (single static HTML file)."""
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.get("/health")

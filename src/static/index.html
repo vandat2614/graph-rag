@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Graph RAG demo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap"
+        rel="stylesheet">
+    <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+    <style>
+        :root {
+            --bg: #EEF2F4;
+            --panel: #FFFFFF;
+            --line: #D5DDE2;
+            --ink: #14232E;
+            --muted: #5B6B77;
+            --accent: #0F5E73;
+            --accent-ink: #FFFFFF;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--ink);
+            font-family: "Instrument Sans", system-ui, sans-serif;
+            font-size: 15px;
+        }
+
+        .app {
+            display: grid;
+            grid-template-columns: minmax(320px, 430px) minmax(0, 1fr);
+            grid-template-rows: minmax(0, 1fr);
+            gap: 16px;
+            padding: 16px;
+            height: 100vh;
+        }
+
+        .side {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            overflow-y: auto;
+            min-height: 0;
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 16px;
+        }
+
+        h1 {
+            margin: 0 0 6px;
+            font-size: 24px;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+        }
+
+        h2 {
+            margin: 0 0 10px;
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .lede {
+            margin: 0;
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .file-name {
+            color: var(--muted);
+            font-size: 13px;
+            overflow-wrap: anywhere;
+        }
+
+        .status {
+            margin-top: 10px;
+            font-size: 13px;
+            color: var(--muted);
+            min-height: 1.3em;
+        }
+
+        button,
+        .btn {
+            font: inherit;
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 8px;
+            padding: 8px 14px;
+            border: 1px solid var(--line);
+            background: var(--panel);
+            color: var(--ink);
+        }
+
+        button.primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--accent-ink);
+        }
+
+        button:disabled {
+            opacity: 0.55;
+            cursor: default;
+        }
+
+        button:focus-visible,
+        .btn:focus-within,
+        textarea:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        .btn input {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 76px;
+            resize: vertical;
+            font: inherit;
+            padding: 10px 12px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            color: var(--ink);
+        }
+
+        .ask-actions {
+            margin-top: 10px;
+        }
+
+        .hint {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .answer {
+            font-family: "Newsreader", Georgia, serif;
+            font-size: 17px;
+            line-height: 1.65;
+            white-space: pre-wrap;
+            max-width: 62ch;
+            margin: 0;
+        }
+
+        .answer:empty::before {
+            content: "The answer will appear here.";
+            color: var(--muted);
+            font-family: "Instrument Sans", sans-serif;
+            font-size: 14px;
+        }
+
+        .graph-panel {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        #graph {
+            flex: 1;
+            min-height: 320px;
+            background-image: radial-gradient(#D5DDE2 1px, transparent 1px);
+            background-size: 18px 18px;
+        }
+
+        .empty {
+            position: absolute;
+            inset: 0 0 auto 0;
+            height: calc(100% - 0px);
+            display: grid;
+            place-items: center;
+            padding: 32px;
+            text-align: center;
+            color: var(--muted);
+            line-height: 1.5;
+            pointer-events: none;
+        }
+
+        .empty[hidden] {
+            display: none;
+        }
+
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px 14px;
+            padding: 10px 16px;
+            border-top: 1px solid var(--line);
+            font-size: 13px;
+            color: var(--muted);
+            min-height: 41px;
+        }
+
+        .legend span {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .detail {
+            border-top: 1px solid var(--line);
+            padding: 12px 16px;
+            font-size: 14px;
+            line-height: 1.5;
+            min-height: 78px;
+            max-height: 190px;
+            overflow-y: auto;
+        }
+
+        .detail .title {
+            font-weight: 600;
+        }
+
+        .detail .meta {
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .detail p {
+            margin: 4px 0 0;
+        }
+
+        @media (max-width: 860px) {
+            .app {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto;
+                height: auto;
+            }
+
+            .side {
+                overflow: visible;
+            }
+
+            .graph-panel {
+                min-height: 75vh;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app">
+        <div class="side">
+            <header class="panel">
+                <h1>Graph RAG</h1>
+                <p class="lede">Ask a question about your PDFs and see the part of the knowledge graph the answer was
+                    built from.</p>
+            </header>
+
+            <section class="panel" aria-labelledby="docs-title">
+                <h2 id="docs-title">Add a document</h2>
+                <div class="row">
+                    <label class="btn">Choose PDF<input type="file" id="file" accept="application/pdf"></label>
+                    <button type="button" class="primary" id="upload-btn">Upload and index</button>
+                </div>
+                <div class="file-name" id="file-name" style="margin-top:8px">No file chosen</div>
+                <div class="status" id="upload-status" role="status" aria-live="polite"></div>
+            </section>
+
+            <section class="panel" aria-labelledby="ask-title">
+                <h2 id="ask-title">Ask a question</h2>
+                <form id="ask-form">
+                    <textarea id="question" placeholder="Người nộp thuế là ai?" aria-label="Your question"></textarea>
+                    <div class="row ask-actions">
+                        <button type="submit" class="primary" id="ask-btn">Ask</button>
+                        <span class="hint">Ctrl+Enter to send</span>
+                    </div>
+                </form>
+            </section>
+
+            <section class="panel" aria-labelledby="answer-title">
+                <h2 id="answer-title">Answer</h2>
+                <p class="answer" id="answer" aria-live="polite"></p>
+            </section>
+        </div>
+
+        <main class="graph-panel" aria-label="Knowledge graph used for the answer">
+            <div id="graph"></div>
+            <div class="empty" id="empty"><span id="empty-text">Ask a question to see the entities and relations that
+                    were used to answer it.</span></div>
+            <div class="legend" id="legend"></div>
+            <div class="detail" id="detail">Click a node or a line to see its details.</div>
+        </main>
+    </div>
+
+    <script>
+        const TYPE_COLORS = {
+            Person: "#3B6FB6",
+            Organization: "#1F8A70",
+            Location: "#B8863B",
+            Event: "#8B5CA6",
+            Concept: "#C9503C",
+            Other: "#7A8793",
+        };
+        const colorFor = (type) => TYPE_COLORS[type] || TYPE_COLORS.Other;
+        const $ = (id) => document.getElementById(id);
+
+        function el(tag, text, className) {
+            const node = document.createElement(tag);
+            if (text !== undefined) node.textContent = text;
+            if (className) node.className = className;
+            return node;
+        }
+
+        /* ---------- Upload ---------- */
+
+        const setStatus = (text) => { $("upload-status").textContent = text; };
+
+        $("file").addEventListener("change", () => {
+            const file = $("file").files[0];
+            $("file-name").textContent = file ? file.name : "No file chosen";
+        });
+
+        $("upload-btn").addEventListener("click", async () => {
+            const file = $("file").files[0];
+            if (!file) { setStatus("Choose a PDF first."); return; }
+
+            const body = new FormData();
+            body.append("file", file);
+            $("upload-btn").disabled = true;
+            setStatus("Uploading…");
+            try {
+                const res = await fetch("/documents", { method: "POST", body });
+                if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+                const { job_id } = await res.json();
+                await pollJob(job_id);
+            } catch (err) {
+                setStatus("Upload failed: " + err.message);
+            } finally {
+                $("upload-btn").disabled = false;
+            }
+        });
+
+        async function pollJob(jobId) {
+            const labels = {
+                queued: "Waiting in the queue…",
+                started: "Indexing. This can take several minutes…",
+                scheduled: "Retrying shortly…",
+            };
+            while (true) {
+                const res = await fetch("/jobs/" + jobId);
+                if (!res.ok) throw new Error("job not found");
+                const job = await res.json();
+                if (job.status === "finished") {
+                    const r = job.result || {};
+                    setStatus(`Indexed ${r.chunks} chunks, ${r.entities} entities and ${r.relations} relations.`);
+                    return;
+                }
+                if (job.status === "failed") {
+                    setStatus("Indexing failed. Check the worker logs for details.");
+                    return;
+                }
+                setStatus(labels[job.status] || job.status);
+                await new Promise((resolve) => setTimeout(resolve, 3000));
+            }
+        }
+
+        /* ---------- Ask ---------- */
+
+        $("ask-form").addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const question = $("question").value.trim();
+            if (!question) return;
+
+            const button = $("ask-btn");
+            button.disabled = true;
+            button.textContent = "Thinking…";
+            $("answer").textContent = "";
+            try {
+                const res = await fetch("/ask", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ question }),
+                });
+                if (!res.ok) throw new Error(res.statusText);
+                const data = await res.json();
+                $("answer").textContent = data.answer;
+                drawGraph(data.nodes, data.edges);
+            } catch (err) {
+                $("answer").textContent = "Something went wrong (" + err.message + "). Try again.";
+            } finally {
+                button.disabled = false;
+                button.textContent = "Ask";
+            }
+        });
+
+        $("question").addEventListener("keydown", (event) => {
+            if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+                $("ask-form").requestSubmit();
+            }
+        });
+
+        /* ---------- Graph ---------- */
+
+        let network = null;
+
+        function drawGraph(nodes, edges) {
+            showDetail(null);
+            $("empty").hidden = nodes.length > 0;
+            $("empty-text").textContent = "Nothing in the graph matched this question.";
+
+            const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+            const validEdges = edges.filter((e) => nodeMap.has(e.source) && nodeMap.has(e.target));
+            const edgeMap = new Map(validEdges.map((e) => [e.id, e]));
+
+            const degree = {};
+            validEdges.forEach((e) => {
+                degree[e.source] = (degree[e.source] || 0) + 1;
+                degree[e.target] = (degree[e.target] || 0) + 1;
+            });
+
+            const visNodes = new vis.DataSet(nodes.map((n) => ({
+                id: n.id,
+                label: n.name,
+                shape: "dot",
+                size: 10 + Math.min(degree[n.id] || 0, 8) * 2,
+                color: { background: colorFor(n.type), border: colorFor(n.type) },
+                font: { face: "Instrument Sans", size: 13, color: "#14232E" },
+            })));
+            const visEdges = new vis.DataSet(validEdges.map((e) => ({
+                id: e.id,
+                from: e.source,
+                to: e.target,
+                width: 1.2,
+                color: { color: "#9FB0BB", highlight: "#0F5E73" },
+            })));
+
+            if (network) network.destroy();
+            network = new vis.Network($("graph"), { nodes: visNodes, edges: visEdges }, {
+                physics: { solver: "forceAtlas2Based", stabilization: { iterations: 150 } },
+                edges: { smooth: false },
+            });
+            network.once("stabilizationIterationsDone", () => network.setOptions({ physics: false }));
+            network.on("click", (params) => {
+                if (params.nodes.length) {
+                    showDetail({ kind: "node", item: nodeMap.get(params.nodes[0]) });
+                } else if (params.edges.length) {
+                    const edge = edgeMap.get(params.edges[0]);
+                    showDetail({ kind: "edge", item: edge, from: nodeMap.get(edge.source), to: nodeMap.get(edge.target) });
+                } else {
+                    showDetail(null);
+                }
+            });
+
+            renderLegend(nodes);
+        }
+
+        function renderLegend(nodes) {
+            const legend = $("legend");
+            legend.replaceChildren();
+            [...new Set(nodes.map((n) => n.type))].forEach((type) => {
+                const item = el("span");
+                const dot = el("i", undefined, "dot");
+                dot.style.background = colorFor(type);
+                item.append(dot, document.createTextNode(type));
+                legend.append(item);
+            });
+        }
+
+        function showDetail(selection) {
+            const box = $("detail");
+            box.replaceChildren();
+            if (!selection) {
+                box.textContent = "Click a node or a line to see its details.";
+                return;
+            }
+            if (selection.kind === "node") {
+                box.append(
+                    el("div", selection.item.name, "title"),
+                    el("div", selection.item.type, "meta"),
+                    el("p", selection.item.description),
+                );
+            } else {
+                box.append(
+                    el("div", `${selection.from.name} and ${selection.to.name}`, "title"),
+                    el("div", selection.item.keywords, "meta"),
+                    el("p", selection.item.description),
+                );
+            }
+        }
+    </script>
+</body>
+
+</html>
