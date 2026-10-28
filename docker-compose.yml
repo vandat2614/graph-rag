@@ -37,14 +37,36 @@ services:
     volumes:
       - redis_data:/data
 
+  embedding:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest
+    container_name: graphrag-embedding
+    restart: unless-stopped
+    command: ["--model-id", "BAAI/bge-m3"]
+    # Localhost only: api and worker call it as http://embedding/v1 inside the docker network
+    ports:
+      - "127.0.0.1:8081:80"
+    volumes:
+      - tei_data:/data   # model cache, so the model is downloaded only once
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s   # the first start downloads the model (about 2 GB)
+
   api:
     build: .
     container_name: graphrag-api
     restart: unless-stopped
     depends_on:
-      - neo4j
-      - qdrant
-      - redis
+      neo4j:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      redis:
+        condition: service_started
+      embedding:
+        condition: service_healthy
     ports:
       - "${API_PORT:-8000}:8000"
     env_file: .env
@@ -53,10 +75,7 @@ services:
       NEO4J_URI: bolt://neo4j:7687
       QDRANT_URL: http://qdrant:6333
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
-      # The embedding server (TEI) runs outside compose, on the VM host
-      EMBEDDING_BASE_URL: http://host.docker.internal:8081/v1
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      EMBEDDING_BASE_URL: http://embedding/v1
     volumes:
       - ./data:/app/data   # uploads and LLM cache, shared with the worker
 
@@ -66,17 +85,20 @@ services:
     restart: unless-stopped
     command: ["rq", "worker", "ingest", "--with-scheduler", "--url", "redis://:${REDIS_PASSWORD}@redis:6379/0"]
     depends_on:
-      - neo4j
-      - qdrant
-      - redis
+      neo4j:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      redis:
+        condition: service_started
+      embedding:
+        condition: service_healthy
     env_file: .env
     environment:
       NEO4J_URI: bolt://neo4j:7687
       QDRANT_URL: http://qdrant:6333
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
-      EMBEDDING_BASE_URL: http://host.docker.internal:8081/v1
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      EMBEDDING_BASE_URL: http://embedding/v1
     volumes:
       - ./data:/app/data
 
@@ -84,3 +106,4 @@ volumes:
   neo4j_data:
   qdrant_data:
   redis_data:
+  tei_data:

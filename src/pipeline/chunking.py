@@ -5,7 +5,7 @@ _cfg = Config()
 
 
 def chunk_document(doc_id: str, text: str) -> list[Chunk]:
-    """Cắt text của một tài liệu thành các Chunk (cửa sổ trượt theo ký tự)."""
+    """Split document text into chunks using a character-based sliding window."""
     size, overlap = _cfg.chunk_size, _cfg.chunk_overlap
     step = size - overlap
 
